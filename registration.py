@@ -3,10 +3,9 @@ import datetime
 import json
 import random
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from data.data import PI5_DATA
 from data.database import DatabaseManager
-from data.json_data_manager import JSONData, DateEncoder
 
 
 MEMBERSHIP_DATA = 'data/memebrship_data.json'
