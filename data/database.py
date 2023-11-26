@@ -1,162 +1,102 @@
-import MySQLdb
 import os
-import psycopg2
-
 from abc import ABC, abstractmethod
+import MySQLdb
+import psycopg2
 
 
 class SingletonDatabase(type):
+    """Implementation of a singleton design pattern for database connection"""
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
-
-        """
-        Implement a singleton pattern for database connections.
-
-        Parameters:
-        - cls: The class being instantiated.
-        - args: Positional arguments.
-        - kwargs: Keyword arguments.
-
-        Returns:
-        The existing instance of the class if it exists, or a new instance if it doesn't.
-        """
-
         if cls not in cls._instances:
-            cls._instances[cls] = super(SingletonDatabase, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super(
+                SingletonDatabase, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
 
 class DatabaseConnection(ABC):
+    """Abstract method to establish a database connection."""
+    
     @abstractmethod
     def connect(self):
-
-        """
-        Abstract method to establish a database connection.
-        """
-
-        pass
+        """Establish a database connection."""
+        raise ValueError("Should be implemented in a child class")
 
     @abstractmethod
     def close(self):
-
-        """
-        Abstract method to close a database connection.
-        """
-
-        pass
-
-class Database(ABC):
-    def __init__(self, connection):
-        self.connection = connection
-
-    @abstractmethod
-    def read_data(self, table_name):
-
-        """
-        Abstract method to read data from a database table.
-
-        Parameters:
-        - table_name (str): The name of the database table.
-
-        Returns:
-        The retrieved data.
-        """
-
-        pass
-
-    @abstractmethod
-    def save_data(self, sql_query, data):
-
-        """
-        Abstract method to save data to the database.
-
-        Parameters:
-        - sql_query (str): The SQL query for saving data.
-        - data (tuple): The data to be saved.
-
-        Returns:
-        None if successful, or an error message if an exception occurs.
-        """
-
-        pass
+        """Close the database connection."""
+        raise ValueError("Should be implemented in a child class")
 
 
-class MySqlConnection(DatabaseConnection):
+class MySQLConnection(DatabaseConnection):
+    """
+    Establish a MySQL database connection.
+
+    Returns:
+    The MySQL database connection.
+    """
+    def __init__(self):
+        self.connection = self.connect()
 
     def connect(self):
-
-        """
-        Establish a MySQL database connection.
-
-        Returns:
-        The MySQL database connection.
-        """
-
+        """Establish a MySQL database connection."""
         connection = MySQLdb.connect(
             host = os.environ.get('MYSQL_DB_HOST'),
-            user="admin",
-            password = os.environ.get('MYSQL_DB_PASSWORD'),
-            database="portfolio",
-            port=10093,
+            user = os.environ.get('MYSQL_DB_USER'),
+            password = os.environ.get('MYSQL_DB_PASS'),
+            database = os.environ.get('MYSQL_DB_NAME'),
+            port = os.environ.get('MYSQL_DB_PORT'),
             charset='utf8mb4'
         )
         return connection
 
-    def close(self, connection):
-        if connection:
-            connection.close()
+    def close(self):
+        """Close MySQL database connection."""
+        try:
+            if self.connection:
+                self.connection.close()
+        except Exception as e:
+            return f"Error closing MySQL connection: {e}"
 
 
-class PostgresqlConnection(DatabaseConnection):
+class PostgreSQLConnection(DatabaseConnection):
+    """
+    Establish a PostgreSQL database connection.
+
+    Returns:
+    The PostgreSQL database connection.
+    """
+    def __init__(self):
+        self.connection = self.connect()
 
     def connect(self):
-
-        """
-        Establish a PostgreSQL database connection.
-
-        Parameters:
-        - dbname (str): The name of the database.
-        - user (str): The database user.
-        - password (str): The user's password.
-        - host (str): The database host.
-        - port (int): The database port.
-
-        Returns:
-        The PostgreSQL database connection.
-        """
-
+        """Establish a PostgreSQL database connection."""
         connection = psycopg2.connect(
-            host = os.environ.get('POSTGRESS_DB_HOST'),
-            user="admin",
-            password = os.environ.get('POSTGRESS_DB_PASSWORD'),
-            database="portfolio",
-            port=5432,
+            host = os.environ.get('PSQL_DB_HOST'),
+            user = os.environ.get('PSQL_DB_USER'),
+            password = os.environ.get('PSQL_DB_PASS'),
+            database = os.environ.get('PSQL_DB_NAME'),
+            port = os.environ.get('PSQL_DB_PORT'),
             charset='utf8mb4'
         )
-
         return connection
 
-    def close(self, connection):
-        if connection:
-            connection.close()
+    def close(self):
+        """Close PostgreSQL database connection."""
+        try:
+            if self.connection:
+                self.connection.close()
+        except Exception as e:
+            return f"Error closing PostgreSQL connection: {e}"
 
 
-class DatabaseManager(metaclass=SingletonDatabase):
-
+class DataManager(metaclass=SingletonDatabase):
+    
     def __init__(self, connection_type):
-
-        """
-        Initialize a DatabaseManager with a specified connection type.
-
-        Parameters:
-        - connection_type (str): The type of database connection ('mysql' or 'postgresql').
-        """
-
         self.connection = self.create_connection(connection_type)
 
     def create_connection(self, connection_type):
-
         """
         Create a database connection based on the specified connection type.
 
@@ -165,77 +105,64 @@ class DatabaseManager(metaclass=SingletonDatabase):
 
         Returns:
         An instance of the appropriate DatabaseConnection subclass based on the connection type.
-        
+
         Raises:
         ValueError: If an unsupported database connection type is provided.
         """
-        
+
         if connection_type == 'mysql':
-            return MySqlConnection()
+            return MySQLConnection()
         elif connection_type == 'postgresql':
-            return PostgresqlConnection()
+            return PostgreSQLConnection()
         else:
             raise ValueError("Unsupported database connection type")
 
-    def read_data(self, table_name):
-
+    def read_data(self, sql_query, params=None):
         """
-        Read data from a specified database table.
+        Read data from the database using a custom SQL query with added parameters.
 
-        Parameters:
-        - table_name (str): The name of the database table to read from.
-
-        Returns:
-        The retrieved data from the specified table.
-        """
-
-        connection = self.connection.connect()
-        cursor = connection.cursor()
-        sql = f"SELECT * FROM {table_name}"
-        cursor.execute(sql)
-        data = cursor.fetchall()
-        connection.close()
-        return data
-
-      def read_data_sql_query(self, sql_query):
-        """
-        Read data from the database using a custom SQL query.
-
-        This method establishes a database connection, executes the provided SQL query, and retrieves the data from the database.
+        This method establishes a database connection, executes the provided SQL query with optional parameters,
+        and retrieves the data from the database.
 
         Parameters:
         - sql_query (str): The SQL query to retrieve data from the database.
+        - params (tuple): Optional parameters for the SQL query.
+
+        Example:
+        >>> print(DataManager('mysql').read_data("SELECT * from login WHERE user_name = %s", ("Jovica B", ))))
 
         Returns:
         A list of tuples containing the retrieved data from the database.
-
-        Example:
-        >>> sql_query = "SELECT * FROM my_table WHERE category = 'A'"
-        >>> data = database_manager.read_data_sql_query(sql_query)
-        >>> print(data)
-        [(1, 'Item A', 'A'), (2, 'Item B', 'A'), ...]
-
-        Note:
-        - The method is intended for reading data from the database using custom SQL queries.
-        - The SQL query should be a valid query that is appropriate for the specific database system (MySQL, PostgreSQL, etc.).
-        - Make sure to handle exceptions appropriately when using this method.
-
         """
-        connection = self.connection.connect()
-        cursor = connection.cursor()
-        cursor.execute(sql_query)
-        data = cursor.fetchall()
-        connection.close()
-        return data
-        
+        try:
+            connection = self.connection.connect()
+            cursor = connection.cursor()
+            cursor.execute(sql_query, params)
+            data = cursor.fetchall()
+            return data
+        except Exception as e:
+            print(f"Error executing SQL query: {e}")
+            return None
+        finally:
+            try:
+                if connection:
+                    connection.close()
+            except Exception as e:
+                print(f"Error closing database connection: {e}")
+
     def save_data(self, sql_query, data):
-
         """
-        Save data to the database using a provided SQL query and data.
+        Saves data to the database using a provided SQL query and data.
 
         Parameters:
         - sql_query (str): The SQL query for saving data.
         - data (tuple): The data to be saved.
+
+        Example:
+        >>> data_manager = DataManager('mysql')
+        >>> data = tuple(input_data,)
+        >>> sql_query = "INSERT INTO p1_clients (client_id, company, city, industry, note, ci_name, ci_phone, ci_email) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+        >>> data_manager.save_data(sql_query, data)
 
         Returns:
         None if successful, or an error message if an exception occurs.
@@ -248,7 +175,8 @@ class DatabaseManager(metaclass=SingletonDatabase):
             connection.commit()
             connection.close()
         except Exception as e:
-            print(f"An error occurred while saving the data to the database: {e}")
+            print(
+                f"An error occurred while saving the data to the database: {e}")
             return None
 
-        return None
+        return "Data successfully stored in the database "
